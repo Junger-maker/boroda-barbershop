@@ -3,13 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await client.execute(`
-      SELECT b.id, b.name, b.years, b.spec, b.initials, b.color, b.photo, b.gradeId, b.isActive, b.created_at as "createdAt",
-             g.name as gradeName
-      FROM barbers b
-      LEFT JOIN grades g ON b.gradeId = g.id
-      ORDER BY b.created_at DESC
-    `);
+    const result = await client.execute({ 
+  sql: `SELECT ...`, 
+  args: [] 
+});
 
     const barbers = result.rows.map(row => ({
       id: row['id'],
