@@ -1,4 +1,4 @@
-import { createClient } from '@libsql/client';
+import { createClient } from '@libsql/client/web';
 import { NextResponse } from 'next/server';
 
 export async function GET() {

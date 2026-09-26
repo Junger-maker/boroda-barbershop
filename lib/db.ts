@@ -1,4 +1,4 @@
-import { createClient } from '@libsql/client';
+import { createClient } from '@libsql/client/web';
 
 const client = createClient({
   url: "libsql://boroda-db-junger-maker.aws-eu-west-1.turso.io",
