@@ -1,19 +1,6 @@
 {
-  "app": {
-    "[project]/Users/vladislav/Desktop/nextjs_space/app/admin/page": [
-      "static/media/87ccb897ba116d44-s.p.05f-deljhbeh9.woff2",
-      "static/media/6ad1cda2f16975ee-s.p.2j22bd4n1tlhh.woff2",
-      "static/media/9c72aa0f40e4eef8-s.p.1y4-pdgsjb-pw.woff2",
-      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2"
-    ],
-    "[project]/Users/vladislav/Desktop/nextjs_space/app/page": [
-      "static/media/87ccb897ba116d44-s.p.05f-deljhbeh9.woff2",
-      "static/media/6ad1cda2f16975ee-s.p.2j22bd4n1tlhh.woff2",
-      "static/media/9c72aa0f40e4eef8-s.p.1y4-pdgsjb-pw.woff2",
-      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2"
-    ]
-  },
-  "appUsingSizeAdjust": true,
+  "app": {},
+  "appUsingSizeAdjust": false,
   "pages": {},
   "pagesUsingSizeAdjust": false
 }
