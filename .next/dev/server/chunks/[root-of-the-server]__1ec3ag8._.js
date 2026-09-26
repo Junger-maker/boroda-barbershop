@@ -75,7 +75,11 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$Users$2f$vladislav$2f$Deskto
 async function GET() {
     try {
         const result = await __TURBOPACK__imported__module__$5b$project$5d2f$Users$2f$vladislav$2f$Desktop$2f$nextjs_space$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["default"].execute({
-            sql: `SELECT ...`,
+            sql: `SELECT b.id, b.name, b.years, b.spec, b.initials, b.color, b.photo, b.gradeId, b.isActive, b.created_at as "createdAt",
+                   g.name as gradeName
+            FROM barbers b
+            LEFT JOIN grades g ON b.gradeId = g.id
+            ORDER BY b.created_at DESC`,
             args: []
         });
         const barbers = result.rows.map((row)=>({
