@@ -1,0 +1,18 @@
+{
+  "[project]/Users/vladislav/Desktop/nextjs_space/app/components/barbers-slider.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/Users/vladislav/Desktop/nextjs_space/app/components/barbers-slider.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/0yj0_00bji8p._.js",
+      "static/chunks/Users_vladislav_Desktop_nextjs_space_app_components_barbers-slider_tsx_0bwfmnk._.js",
+      "static/chunks/0yj0_swiper_0io7vh1._.css"
+    ]
+  },
+  "[project]/Users/vladislav/Desktop/nextjs_space/app/components/reviews-slider.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/Users/vladislav/Desktop/nextjs_space/app/components/reviews-slider.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/0yj0_0t45f12._.js",
+      "static/chunks/Users_vladislav_Desktop_nextjs_space_app_components_reviews-slider_tsx_0epljj3._.js",
+      "static/chunks/0yj0_swiper_0di76tc._.css"
+    ]
+  }
+}

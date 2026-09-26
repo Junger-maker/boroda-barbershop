@@ -1,0 +1,6 @@
+var R=require("./[turbopack]_runtime.js")("chunks/pool_entry-[turbopack-node]_transforms_postcss_ts_0u5hc9h._.js")
+R.c("chunks/[turbopack-node]_transforms_postcss_ts_1i6va5s._.js")
+R.c("chunks/[root-of-the-server]__1gb29n3._.js")
+R.m("[turbopack-node]/child_process/globals.ts [postcss] (ecmascript)")
+R.m("[turbopack-node]/child_process/evaluate.ts/evaluate.js { INNER => \"[turbopack-node]/transforms/postcss.ts?config=[project]/Users/vladislav/Desktop/nextjs_space/postcss.config.js { CONFIG => \\\"[project]/Users/vladislav/Desktop/nextjs_space/postcss.config.js_.loader.mjs [postcss] (ecmascript)\\\" } [postcss] (ecmascript)\", RUNTIME => \"[turbopack-node]/child_process/evaluate.ts [postcss] (ecmascript)\" } [postcss] (ecmascript)")
+module.exports=R.m("[turbopack-node]/child_process/evaluate.ts/evaluate.js { INNER => \"[turbopack-node]/transforms/postcss.ts?config=[project]/Users/vladislav/Desktop/nextjs_space/postcss.config.js { CONFIG => \\\"[project]/Users/vladislav/Desktop/nextjs_space/postcss.config.js_.loader.mjs [postcss] (ecmascript)\\\" } [postcss] (ecmascript)\", RUNTIME => \"[turbopack-node]/child_process/evaluate.ts [postcss] (ecmascript)\" } [postcss] (ecmascript)").exports

@@ -1,0 +1,13 @@
+{
+  "/admin/page": "app/admin/page.js",
+  "/api/admin/barbers/[id]/route": "app/api/admin/barbers/[id]/route.js",
+  "/api/admin/barbers/route": "app/api/admin/barbers/route.js",
+  "/api/admin/bookings/route": "app/api/admin/bookings/route.js",
+  "/api/admin/grades/route": "app/api/admin/grades/route.js",
+  "/api/admin/services/route": "app/api/admin/services/route.js",
+  "/api/barbers/route": "app/api/barbers/route.js",
+  "/api/grades/route": "app/api/grades/route.js",
+  "/api/services/route": "app/api/services/route.js",
+  "/api/uploadthing/route": "app/api/uploadthing/route.js",
+  "/page": "app/page.js"
+}
