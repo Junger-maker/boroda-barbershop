@@ -1,5 +1,3 @@
-// lib/db.ts
-
 type ExecuteOptions = {
   sql: string;
   args?: (string | number | null | boolean)[];
@@ -20,10 +18,8 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
     throw new Error('Отсутствуют переменные окружения TURSO_DATABASE_URL или TURSO_AUTH_TOKEN');
   }
 
-  // Преобразуем libsql:// в https:// для HTTP API
   const httpUrl = dbUrl.replace('libsql://', 'https://') + '/v2/pipeline';
 
-  // Преобразуем аргументы в формат Turso HTTP API
   const formattedArgs = (options.args || []).map((arg) => {
     if (arg === null || arg === undefined) return { type: 'null' as const, value: null };
     if (typeof arg === 'boolean') return { type: 'integer' as const, value: arg ? 1 : 0 };
@@ -44,7 +40,7 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
           ...(formattedArgs.length > 0 ? { args: formattedArgs } : {}),
         },
       },
-      { type: 'close' }, // Явно закрываем соединение для экономии ресурсов сервера
+      { type: 'close' },
     ],
   };
 
@@ -71,24 +67,23 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
 
   const result = executeResult.response.result;
   
-  // Преобразуем массивы строк БД в массивы объектов для полной совместимости с @libsql/client
+  // Гарантированно безопасное преобразование строк БД в объекты
   const rows = result.rows.map((row: any[]) => {
     const obj: Record<string, any> = {};
     result.cols.forEach((col: string, index: number) => {
-      obj[col] = row[index];
+      obj[String(col)] = row[index];
     });
     return obj;
   });
 
   return {
     rows,
-    columns: result.cols,
+    columns: result.cols.map(String),
     rowsAffected: result.affected_row_count,
     lastInsertRowid: result.last_insert_rowid,
   };
 }
 
-// Экспортируем объект client по умолчанию, чтобы существующие API-роуты работали без изменений
 export default {
   execute,
 };
