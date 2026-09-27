@@ -3,21 +3,54 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    console.log('🔍 GRADES API: Начинаем запрос...');
-    
-    // Самый простой запрос - просто SELECT *
     const result = await client.execute({
-      sql: 'SELECT * FROM grades'
+      sql: `
+        SELECT 
+          g.id, g.name, g.isActive, g.created_at as "createdAt",
+          gs.id as gs_id, gs.gradeId, gs.serviceId, gs.price, gs.isActive as gs_isActive,
+          s.id as s_id, s.name as s_name, s.isActive as s_isActive
+        FROM grades g
+        LEFT JOIN grade_services gs ON g.id = gs.gradeId
+        LEFT JOIN services s ON gs.serviceId = s.id
+        ORDER BY g.created_at ASC
+      `
     });
-    
-    console.log('🔍 GRADES API: Результат из БД:', JSON.stringify(result.rows, null, 2));
-    console.log(' GRADES API: Колонки:', result.columns);
-    
-    // Возвращаем всё как есть
-    return NextResponse.json(result.rows);
+
+    const gradesMap = new Map();
+    const grades = [];
+
+    for (const row of result.rows) {
+      if (!gradesMap.has(row['id'])) {
+        gradesMap.set(row['id'], {
+          id: row['id'],
+          name: row['name'] || 'Без названия', // ЗАЩИТА ОТ NULL
+          isActive: row['isActive'],
+          createdAt: row['createdAt'],
+          gradeServices: []
+        });
+        grades.push(gradesMap.get(row['id']));
+      }
+      
+      if (row['s_id']) {
+        const grade = gradesMap.get(row['id']);
+        grade.gradeServices.push({
+          id: row['gs_id'],
+          gradeId: row['gradeId'],
+          serviceId: row['serviceId'],
+          price: row['price'],
+          isActive: row['gs_isActive'],
+          service: {
+            id: row['s_id'],
+            name: row['s_name'] || 'Услуга', // ЗАЩИТА ОТ NULL (Именно это чинит ошибку!)
+            isActive: row['s_isActive']
+          }
+        });
+      }
+    }
+
+    return NextResponse.json(grades);
   } catch (error: any) {
-    console.error('❌ GRADES API ERROR:', error.message);
-    console.error('Full error:', error);
+    console.error('GRADES GET ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
@@ -34,10 +67,11 @@ export async function POST(request: Request) {
       id: result.lastInsertRowid, 
       name: body.name, 
       isActive: 1, 
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      gradeServices: [] 
     }, { status: 201 });
   } catch (error: any) {
-    console.error('❌ GRADES POST ERROR:', error.message);
+    console.error('GRADES POST ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
