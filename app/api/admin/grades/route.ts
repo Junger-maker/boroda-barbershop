@@ -3,23 +3,21 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    // Самый простой и надёжный запрос
+    console.log('🔍 GRADES API: Начинаем запрос...');
+    
+    // Самый простой запрос - просто SELECT *
     const result = await client.execute({
-      sql: 'SELECT * FROM grades ORDER BY created_at ASC'
+      sql: 'SELECT * FROM grades'
     });
     
-    // Гарантируем, что фронтенд получит массив с нужными полями
-    const safeGrades = result.rows.map((row: any) => ({
-      id: row['id'] || crypto.randomUUID(),
-      name: row['name'] || 'Без названия',
-      isActive: row['isActive'] ?? 1,
-      createdAt: row['created_at'] || row['createdAt'] || Date.now(),
-      gradeServices: [] // Пока возвращаем пустой массив, чтобы фронтенд не падал на .map
-    }));
-
-    return NextResponse.json(safeGrades);
+    console.log('🔍 GRADES API: Результат из БД:', JSON.stringify(result.rows, null, 2));
+    console.log(' GRADES API: Колонки:', result.columns);
+    
+    // Возвращаем всё как есть
+    return NextResponse.json(result.rows);
   } catch (error: any) {
-    console.error('ADMIN GRADES GET ERROR:', error.message);
+    console.error('❌ GRADES API ERROR:', error.message);
+    console.error('Full error:', error);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
@@ -33,14 +31,13 @@ export async function POST(request: Request) {
     });
     
     return NextResponse.json({ 
-      id: result.lastInsertRowid || crypto.randomUUID(), 
+      id: result.lastInsertRowid, 
       name: body.name, 
       isActive: 1, 
-      createdAt: Date.now(),
-      gradeServices: [] 
+      createdAt: Date.now()
     }, { status: 201 });
   } catch (error: any) {
-    console.error('ADMIN GRADES POST ERROR:', error.message);
+    console.error('❌ GRADES POST ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
