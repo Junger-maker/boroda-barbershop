@@ -4,9 +4,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const result = await client.execute({
-      sql: `SELECT id, name, phone, service, barber, date, time, consent, created_at as "createdAt" 
-            FROM bookings 
-            ORDER BY created_at DESC`
+      sql: `SELECT id, name, phone, service, barber, date, time, consent, created_at as "createdAt" FROM bookings ORDER BY created_at DESC`
     });
     return NextResponse.json(result.rows);
   } catch (error: any) {
