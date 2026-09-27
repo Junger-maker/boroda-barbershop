@@ -6,36 +6,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const body = await request.json();
     
-    // 1. Обновляем название градации
-    await client.execute({
-      sql: 'UPDATE grades SET name = ? WHERE id = ?',
-      args: [body.name, id]
-    });
+    await client.execute({ sql: 'UPDATE grades SET name = ? WHERE id = ?', args: [body.name, id] });
     
-    // 2. Если пришли услуги с ценами, обновляем их
     if (body.services && Array.isArray(body.services)) {
-      // Сначала удаляем старые привязки для этой градации
-      await client.execute({
-        sql: 'DELETE FROM grade_services WHERE gradeId = ?',
-        args: [id]
-      });
+      await client.execute({ sql: 'DELETE FROM grade_services WHERE gradeId = ?', args: [id] });
       
-      // Затем добавляем новые
       for (const s of body.services) {
+        const serviceId = s.serviceId || s.id;
+        if (!serviceId) {
+          console.error('⚠️ Пропущена услуга без serviceId:', s);
+          continue; // Пропускаем некорректные данные, чтобы не ронять весь запрос
+        }
+        
         await client.execute({
           sql: 'INSERT INTO grade_services (id, gradeId, serviceId, price, isActive, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-          args: [
-            crypto.randomUUID(),
-            id,
-            s.serviceId,
-            s.price || 0,
-            s.isActive ? 1 : 0,
-            Date.now()
-          ]
+          args: [crypto.randomUUID(), id, String(serviceId), Number(s.price) || 0, s.isActive ? 1 : 0, Date.now()]
         });
       }
     }
-    
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('GRADE PUT ERROR:', error.message);
