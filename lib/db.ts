@@ -1,113 +1,94 @@
 // lib/db.ts
-import { tursoExecute, mapRows, TursoArg } from './turso-http';
 
-// --- Типы данных ---
-export type Barber = { id: number; name: string; photo_url: string | null; description: string | null };
-export type Grade = { id: number; name: string; icon: string };
-export type Service = { id: number; name: string; price: number; grade_id: number };
-export type Booking = { 
-  id: number; barber_id: number; service_id: number; client_name: string; 
-  client_phone: string; date: string; time: string; created_at: string;
-  barber_name?: string; service_name?: string; // Для джоинов
+type ExecuteOptions = {
+  sql: string;
+  args?: (string | number | null | boolean)[];
 };
 
-// --- Барберы ---
-export async function getBarbers(): Promise<Barber[]> {
-  const result = await tursoExecute('SELECT * FROM barbers ORDER BY id');
-  return mapRows<Barber>(result);
+type ExecuteResult = {
+  rows: Record<string, any>[];
+  columns: string[];
+  rowsAffected: number;
+  lastInsertRowid: number | bigint | null;
+};
+
+async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
+  const dbUrl = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
+
+  if (!dbUrl || !authToken) {
+    throw new Error('Отсутствуют переменные окружения TURSO_DATABASE_URL или TURSO_AUTH_TOKEN');
+  }
+
+  // Преобразуем libsql:// в https:// для HTTP API
+  const httpUrl = dbUrl.replace('libsql://', 'https://') + '/v2/pipeline';
+
+  // Преобразуем аргументы в формат Turso HTTP API
+  const formattedArgs = (options.args || []).map((arg) => {
+    if (arg === null || arg === undefined) return { type: 'null' as const, value: null };
+    if (typeof arg === 'boolean') return { type: 'integer' as const, value: arg ? 1 : 0 };
+    if (typeof arg === 'number') {
+      return Number.isInteger(arg) 
+        ? { type: 'integer' as const, value: arg.toString() }
+        : { type: 'float' as const, value: arg.toString() };
+    }
+    return { type: 'text' as const, value: String(arg) };
+  });
+
+  const payload = {
+    requests: [
+      {
+        type: 'execute',
+        stmt: {
+          sql: options.sql,
+          ...(formattedArgs.length > 0 ? { args: formattedArgs } : {}),
+        },
+      },
+      { type: 'close' }, // Явно закрываем соединение для экономии ресурсов сервера
+    ],
+  };
+
+  const response = await fetch(httpUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${authToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Ошибка Turso HTTP API: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  
+  const executeResult = data.results?.[0];
+  if (executeResult?.type !== 'ok' || executeResult.response?.type !== 'execute') {
+    throw new Error(`Неожиданный ответ от Turso: ${JSON.stringify(data)}`);
+  }
+
+  const result = executeResult.response.result;
+  
+  // Преобразуем массивы строк БД в массивы объектов для полной совместимости с @libsql/client
+  const rows = result.rows.map((row: any[]) => {
+    const obj: Record<string, any> = {};
+    result.cols.forEach((col: string, index: number) => {
+      obj[col] = row[index];
+    });
+    return obj;
+  });
+
+  return {
+    rows,
+    columns: result.cols,
+    rowsAffected: result.affected_row_count,
+    lastInsertRowid: result.last_insert_rowid,
+  };
 }
 
-export async function createBarber(name: string, photo_url: string | null, description: string | null): Promise<number> {
-  const result = await tursoExecute(
-    'INSERT INTO barbers (name, photo_url, description) VALUES (?, ?, ?)',
-    [{ type: 'text', value: name }, { type: 'text', value: photo_url }, { type: 'text', value: description }]
-  );
-  return result.last_insert_rowid!;
-}
-
-export async function updateBarber(id: number, name: string, photo_url: string | null, description: string | null): Promise<void> {
-  await tursoExecute(
-    'UPDATE barbers SET name = ?, photo_url = ?, description = ? WHERE id = ?',
-    [{ type: 'text', value: name }, { type: 'text', value: photo_url }, { type: 'text', value: description }, { type: 'integer', value: id }]
-  );
-}
-
-export async function deleteBarber(id: number): Promise<void> {
-  await tursoExecute('DELETE FROM barbers WHERE id = ?', [{ type: 'integer', value: id }]);
-}
-
-// --- Градации ---
-export async function getGrades(): Promise<Grade[]> {
-  const result = await tursoExecute('SELECT * FROM grades ORDER BY id');
-  return mapRows<Grade>(result);
-}
-
-export async function createGrade(name: string, icon: string): Promise<number> {
-  const result = await tursoExecute('INSERT INTO grades (name, icon) VALUES (?, ?)', [
-    { type: 'text', value: name }, { type: 'text', value: icon }
-  ]);
-  return result.last_insert_rowid!;
-}
-
-export async function updateGrade(id: number, name: string, icon: string): Promise<void> {
-  await tursoExecute('UPDATE grades SET name = ?, icon = ? WHERE id = ?', [
-    { type: 'text', value: name }, { type: 'text', value: icon }, { type: 'integer', value: id }
-  ]);
-}
-
-export async function deleteGrade(id: number): Promise<void> {
-  await tursoExecute('DELETE FROM grades WHERE id = ?', [{ type: 'integer', value: id }]);
-}
-
-// --- Услуги ---
-export async function getServices(): Promise<Service[]> {
-  const result = await tursoExecute('SELECT * FROM services ORDER BY id');
-  return mapRows<Service>(result);
-}
-
-export async function createService(name: string, price: number, grade_id: number): Promise<number> {
-  const result = await tursoExecute('INSERT INTO services (name, price, grade_id) VALUES (?, ?, ?)', [
-    { type: 'text', value: name }, { type: 'integer', value: price }, { type: 'integer', value: grade_id }
-  ]);
-  return result.last_insert_rowid!;
-}
-
-export async function updateService(id: number, name: string, price: number, grade_id: number): Promise<void> {
-  await tursoExecute('UPDATE services SET name = ?, price = ?, grade_id = ? WHERE id = ?', [
-    { type: 'text', value: name }, { type: 'integer', value: price }, { type: 'integer', value: grade_id }, { type: 'integer', value: id }
-  ]);
-}
-
-export async function deleteService(id: number): Promise<void> {
-  await tursoExecute('DELETE FROM services WHERE id = ?', [{ type: 'integer', value: id }]);
-}
-
-// --- Записи (Bookings) ---
-export async function getBookings(): Promise<Booking[]> {
-  const result = await tursoExecute(`
-    SELECT b.*, bar.name as barber_name, s.name as service_name 
-    FROM bookings b
-    LEFT JOIN barbers bar ON b.barber_id = bar.id
-    LEFT JOIN services s ON b.service_id = s.id
-    ORDER BY b.date DESC, b.time DESC
-  `);
-  return mapRows<Booking>(result);
-}
-
-export async function createBooking(
-  barber_id: number, service_id: number, client_name: string, client_phone: string, date: string, time: string
-): Promise<number> {
-  const result = await tursoExecute(
-    `INSERT INTO bookings (barber_id, service_id, client_name, client_phone, date, time) VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      { type: 'integer', value: barber_id }, { type: 'integer', value: service_id },
-      { type: 'text', value: client_name }, { type: 'text', value: client_phone },
-      { type: 'text', value: date }, { type: 'text', value: time }
-    ]
-  );
-  return result.last_insert_rowid!;
-}
-
-export async function deleteBooking(id: number): Promise<void> {
-  await tursoExecute('DELETE FROM bookings WHERE id = ?', [{ type: 'integer', value: id }]);
-}
+// Экспортируем объект client по умолчанию, чтобы существующие API-роуты работали без изменений
+export default {
+  execute,
+};
