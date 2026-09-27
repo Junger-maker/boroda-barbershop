@@ -10,20 +10,7 @@ export async function GET() {
             ORDER BY created_at DESC`
     });
     
-    const barbers = result.rows.map(row => ({
-      id: row['id'],
-      name: row['name'],
-      years: row['years'],
-      spec: row['spec'],
-      initials: row['initials'],
-      color: row['color'],
-      photo: row['photo'],
-      gradeId: row['gradeId'],
-      isActive: row['isActive'],
-      createdAt: row['createdAt']
-    }));
-
-    return NextResponse.json(barbers);
+    return NextResponse.json(result.rows);
   } catch (error: any) {
     console.error('Ошибка получения барберов:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
