@@ -4,11 +4,10 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const result = await client.execute({
-      sql: `SELECT id, name, phone, service, barber, date, time, consent, created_at as "createdAt" FROM bookings ORDER BY created_at DESC`
+      sql: 'SELECT id, name, phone, service, barber, date, time, consent, created_at as "createdAt" FROM bookings ORDER BY created_at DESC'
     });
     
-    // Принудительно заменяем null на строки, чтобы фронтенд не падал
-    const safeBookings = result.rows.map(row => ({
+    const safeBookings = result.rows.map((row: any) => ({
       id: row['id'],
       name: row['name'] || 'Клиент',
       phone: row['phone'] || 'Нет телефона',

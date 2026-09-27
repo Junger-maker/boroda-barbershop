@@ -21,15 +21,14 @@ export async function GET() {
 
     for (const row of result.rows) {
       if (!gradesMap.has(row['id'])) {
-        const grade = {
+        gradesMap.set(row['id'], {
           id: row['id'],
           name: row['name'] || 'Без названия',
           isActive: row['isActive'],
           createdAt: row['createdAt'],
           gradeServices: []
-        };
-        gradesMap.set(row['id'], grade);
-        grades.push(grade);
+        });
+        grades.push(gradesMap.get(row['id']));
       }
       
       if (row['s_id']) {
@@ -43,7 +42,7 @@ export async function GET() {
           createdAt: row['gs_createdAt'],
           service: {
             id: row['s_id'],
-            name: row['s_name'] || 'Удаленная услуга', // ЗАЩИТА ОТ NULL
+            name: row['s_name'] || 'Услуга не найдена', // ЖЁСТКАЯ ЗАЩИТА ОТ NULL
             isActive: row['s_isActive'],
             createdAt: row['s_createdAt']
           }
