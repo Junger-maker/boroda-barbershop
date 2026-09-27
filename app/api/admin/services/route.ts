@@ -3,8 +3,25 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await client.execute({ sql: 'SELECT * FROM services ORDER BY name ASC' });
-    return NextResponse.json(result.rows);
+    const result = await client.execute({ sql: 'SELECT * FROM services' });
+    
+    const safeServices = (result.rows || []).map((row: any) => {
+      // Динамически находим ключи, игнорируя регистр (id, ID, Id)
+      const keys = Object.keys(row);
+      const idKey = keys.find(k => k.toLowerCase() === 'id') || 'id';
+      const nameKey = keys.find(k => k.toLowerCase() === 'name') || 'name';
+      const isActiveKey = keys.find(k => k.toLowerCase() === 'isactive') || 'isActive';
+      const createdAtKey = keys.find(k => k.toLowerCase().includes('created')) || 'createdAt';
+
+      return {
+        id: String(row[idKey] || crypto.randomUUID()),
+        name: String(row[nameKey] || 'Без названия'),
+        isActive: row[isActiveKey] ?? 1,
+        createdAt: row[createdAtKey] || Date.now()
+      };
+    });
+
+    return NextResponse.json(safeServices);
   } catch (error: any) {
     console.error('ADMIN SERVICES GET ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
@@ -14,15 +31,16 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const id = crypto.randomUUID();
-    const now = Date.now();
-
     const result = await client.execute({
-      sql: 'INSERT INTO services (id, name, isActive, created_at) VALUES (?, ?, ?, ?)',
-      args: [id, body.name, 1, now]
+      sql: 'INSERT INTO services (name, isActive, created_at) VALUES (?, ?, ?)',
+      args: [body.name || 'Новая услуга', 1, Date.now()]
     });
-
-    return NextResponse.json({ id, name: body.name, isActive: 1, created_at: now }, { status: 201 });
+    return NextResponse.json({ 
+      id: String(result.lastInsertRowid || crypto.randomUUID()), 
+      name: String(body.name), 
+      isActive: 1, 
+      createdAt: Date.now() 
+    }, { status: 201 });
   } catch (error: any) {
     console.error('ADMIN SERVICES POST ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });

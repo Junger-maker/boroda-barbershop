@@ -3,21 +3,26 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    // Простой запрос без сложных JOIN, чтобы исключить ошибки
-    const result = await client.execute({
-      sql: 'SELECT id, name, isActive, created_at FROM grades ORDER BY created_at ASC'
+    const result = await client.execute({ sql: 'SELECT * FROM grades' });
+    
+    const safeGrades = (result.rows || []).map((row: any) => {
+      // Динамически находим ключи, игнорируя регистр (ID, NAME, ISACTIVE)
+      const keys = Object.keys(row);
+      const idKey = keys.find(k => k.toLowerCase() === 'id') || 'id';
+      const nameKey = keys.find(k => k.toLowerCase() === 'name') || 'name';
+      const isActiveKey = keys.find(k => k.toLowerCase() === 'isactive') || 'isActive';
+      const createdAtKey = keys.find(k => k.toLowerCase().includes('created')) || 'createdAt';
+
+      return {
+        id: String(row[idKey] || crypto.randomUUID()),
+        name: String(row[nameKey] || 'Без названия'),
+        isActive: row[isActiveKey] ?? 1,
+        createdAt: row[createdAtKey] || Date.now(),
+        gradeServices: []
+      };
     });
 
-    // Принудительно приводим к строке и проверяем оба регистра (id / ID)
-    const grades = (result.rows || []).map((row: any) => ({
-      id: String(row['id'] || row['ID'] || crypto.randomUUID()),
-      name: String(row['name'] || row['NAME'] || 'Без названия'),
-      isActive: row['isActive'] ?? row['ISACTIVE'] ?? 1,
-      createdAt: row['created_at'] || row['createdAt'] || Date.now(),
-      gradeServices: [] // Пока возвращаем пустой массив, чтобы фронтенд гарантированно не падал на .map
-    }));
-
-    return NextResponse.json(grades);
+    return NextResponse.json(safeGrades);
   } catch (error: any) {
     console.error('ADMIN GRADES GET ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
@@ -31,7 +36,6 @@ export async function POST(request: Request) {
       sql: 'INSERT INTO grades (name, isActive, created_at) VALUES (?, ?, ?)',
       args: [body.name || 'Новая градация', 1, Date.now()]
     });
-    
     return NextResponse.json({ 
       id: String(result.lastInsertRowid || crypto.randomUUID()), 
       name: String(body.name), 
