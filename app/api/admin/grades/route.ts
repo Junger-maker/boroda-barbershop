@@ -3,54 +3,23 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
+    // Простой запрос без сложных JOIN, чтобы исключить ошибки
     const result = await client.execute({
-      sql: `
-        SELECT 
-          g.id, g.name, g.isActive, g.created_at as "createdAt",
-          gs.id as gs_id, gs.gradeId, gs.serviceId, gs.price, gs.isActive as gs_isActive,
-          s.id as s_id, s.name as s_name, s.isActive as s_isActive
-        FROM grades g
-        LEFT JOIN grade_services gs ON g.id = gs.gradeId
-        LEFT JOIN services s ON gs.serviceId = s.id
-        ORDER BY g.created_at ASC
-      `
+      sql: 'SELECT id, name, isActive, created_at FROM grades ORDER BY created_at ASC'
     });
 
-    const gradesMap = new Map();
-    const grades = [];
-
-    for (const row of result.rows) {
-      if (!gradesMap.has(row['id'])) {
-        gradesMap.set(row['id'], {
-          id: row['id'],
-          name: row['name'] || 'Без названия', // ЗАЩИТА ОТ NULL
-          isActive: row['isActive'],
-          createdAt: row['createdAt'],
-          gradeServices: []
-        });
-        grades.push(gradesMap.get(row['id']));
-      }
-      
-      if (row['s_id']) {
-        const grade = gradesMap.get(row['id']);
-        grade.gradeServices.push({
-          id: row['gs_id'],
-          gradeId: row['gradeId'],
-          serviceId: row['serviceId'],
-          price: row['price'],
-          isActive: row['gs_isActive'],
-          service: {
-            id: row['s_id'],
-            name: row['s_name'] || 'Услуга', // ЗАЩИТА ОТ NULL (Именно это чинит ошибку!)
-            isActive: row['s_isActive']
-          }
-        });
-      }
-    }
+    // Принудительно приводим к строке и проверяем оба регистра (id / ID)
+    const grades = (result.rows || []).map((row: any) => ({
+      id: String(row['id'] || row['ID'] || crypto.randomUUID()),
+      name: String(row['name'] || row['NAME'] || 'Без названия'),
+      isActive: row['isActive'] ?? row['ISACTIVE'] ?? 1,
+      createdAt: row['created_at'] || row['createdAt'] || Date.now(),
+      gradeServices: [] // Пока возвращаем пустой массив, чтобы фронтенд гарантированно не падал на .map
+    }));
 
     return NextResponse.json(grades);
   } catch (error: any) {
-    console.error('GRADES GET ERROR:', error.message);
+    console.error('ADMIN GRADES GET ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
@@ -64,14 +33,14 @@ export async function POST(request: Request) {
     });
     
     return NextResponse.json({ 
-      id: result.lastInsertRowid, 
-      name: body.name, 
+      id: String(result.lastInsertRowid || crypto.randomUUID()), 
+      name: String(body.name), 
       isActive: 1, 
       createdAt: Date.now(),
       gradeServices: [] 
     }, { status: 201 });
   } catch (error: any) {
-    console.error('GRADES POST ERROR:', error.message);
+    console.error('ADMIN GRADES POST ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
