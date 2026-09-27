@@ -59,15 +59,15 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
   }
 
   const data = await response.json();
-  
   const executeResult = data.results?.[0];
+  
   if (executeResult?.type !== 'ok' || executeResult.response?.type !== 'execute') {
     throw new Error(`Неожиданный ответ от Turso: ${JSON.stringify(data)}`);
   }
 
   const result = executeResult.response.result;
   
-  // 1. Надёжное извлечение имён колонок (будь то строка или объект { name: "..." })
+  // 1. Извлекаем имена колонок (они могут быть строками или объектами { name: "..." })
   const columnNames = (result.cols || []).map((col: any) => {
     if (typeof col === 'object' && col !== null && 'name' in col) {
       return String(col.name);
@@ -75,25 +75,13 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
     return String(col);
   });
 
-  // 2. Надёжное преобразование строк в объекты с извлечением чистых значений
+  // 2. Преобразуем строки в объекты, извлекая чистые значения из { type: "...", value: "..." }
   const rows = (result.rows || []).map((row: any) => {
     const obj: Record<string, any> = {};
     
     if (Array.isArray(row)) {
       columnNames.forEach((colName: string, index: number) => {
         let val = row[index];
-        // Если значение пришло в формате { type: "...", value: "..." }, берём только value
-        if (typeof val === 'object' && val !== null && 'value' in val) {
-          val = val.value;
-        }
-        obj[colName] = val;
-      });
-    } else if (typeof row === 'object' && row !== null) {
-      // Fallback: если строка уже объект, но ключи сломаны, пытаемся сопоставить по индексу
-      const keys = Object.keys(row);
-      keys.forEach((key, index) => {
-        const colName = columnNames[index] || key;
-        let val = (row as any)[key];
         if (typeof val === 'object' && val !== null && 'value' in val) {
           val = val.value;
         }
@@ -111,6 +99,4 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
   };
 }
 
-export default {
-  execute,
-};
+export default { execute };
