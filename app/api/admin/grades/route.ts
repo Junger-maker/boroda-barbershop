@@ -3,54 +3,75 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await client.execute({ sql: 'SELECT * FROM grades' });
-    return NextResponse.json(result.rows || []);
+    // Делаем JOIN, чтобы получить услуги и их цены для каждой градации
+    const result = await client.execute({
+      sql: `
+        SELECT 
+          g.id, g.name, g.isActive, g.created_at as "createdAt",
+          gs.id as gs_id, gs.serviceId, gs.price, gs.isActive as gs_isActive,
+          s.id as s_id, s.name as s_name
+        FROM grades g
+        LEFT JOIN grade_services gs ON g.id = gs.gradeId
+        LEFT JOIN services s ON gs.serviceId = s.id
+        ORDER BY g.created_at ASC
+      `
+    });
+
+    const gradesMap = new Map();
+    const grades = [];
+
+    for (const row of result.rows) {
+      if (!gradesMap.has(row['id'])) {
+        gradesMap.set(row['id'], {
+          id: String(row['id']),
+          name: String(row['name'] || 'Без названия'),
+          isActive: row['isActive'] ?? 1,
+          createdAt: row['createdAt'],
+          gradeServices: []
+        });
+        grades.push(gradesMap.get(row['id']));
+      }
+      
+      // Если есть привязанная услуга, добавляем её в gradeServices
+      if (row['s_id']) {
+        const grade = gradesMap.get(row['id']);
+        grade.gradeServices.push({
+          id: String(row['gs_id']),
+          serviceId: String(row['serviceId']),
+          price: Number(row['price']) || 0,
+          isActive: Boolean(row['gs_isActive']),
+          service: {
+            id: String(row['s_id']),
+            name: String(row['s_name'] || 'Услуга')
+          }
+        });
+      }
+    }
+
+    return NextResponse.json(grades);
   } catch (error: any) {
-    console.error('GRADES GET ERROR:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('ADMIN GRADES GET ERROR:', error.message);
+    return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    await client.execute({
+    const result = await client.execute({
       sql: 'INSERT INTO grades (name, isActive, created_at) VALUES (?, ?, ?)',
-      args: [body.name, 1, Date.now()]
+      args: [body.name || 'Новая градация', 1, Date.now()]
     });
     
-    const grades = await client.execute({ sql: 'SELECT * FROM grades ORDER BY created_at DESC LIMIT 1' });
-    return NextResponse.json(grades.rows[0] || {}, { status: 201 });
+    return NextResponse.json({ 
+      id: String(result.lastInsertRowid || crypto.randomUUID()), 
+      name: String(body.name), 
+      isActive: 1, 
+      createdAt: Date.now(),
+      gradeServices: [] 
+    }, { status: 201 });
   } catch (error: any) {
-    console.error('GRADES POST ERROR:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function PUT(request: Request) {
-  try {
-    const body = await request.json();
-    await client.execute({
-      sql: 'UPDATE grades SET name = ? WHERE id = ?',
-      args: [body.name, body.id]
-    });
-    
-    const grades = await client.execute({ sql: 'SELECT * FROM grades WHERE id = ?', args: [body.id] });
-    return NextResponse.json(grades.rows[0] || {});
-  } catch (error: any) {
-    console.error('GRADES PUT ERROR:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const url = new URL(request.url);
-    const id = url.searchParams.get('id');
-    await client.execute({ sql: 'DELETE FROM grades WHERE id = ?', args: [id] });
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('GRADES DELETE ERROR:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('ADMIN GRADES POST ERROR:', error.message);
+    return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
