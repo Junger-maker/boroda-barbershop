@@ -3,12 +3,10 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await client.execute({
-      sql: `SELECT id, name, isActive, created_at as "createdAt" FROM services ORDER BY name ASC`
-    });
+    const result = await client.execute({ sql: 'SELECT * FROM services ORDER BY name ASC' });
     return NextResponse.json(result.rows);
   } catch (error: any) {
-    console.error('Ошибка получения услуг:', error.message);
+    console.error('ADMIN SERVICES GET ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
@@ -16,13 +14,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const id = crypto.randomUUID();
+    const now = Date.now();
+
     const result = await client.execute({
-      sql: `INSERT INTO services (name, isActive, created_at) VALUES (?, ?, ?)`,
-      args: [body.name, 1, Date.now()]
+      sql: 'INSERT INTO services (id, name, isActive, created_at) VALUES (?, ?, ?, ?)',
+      args: [id, body.name, 1, now]
     });
-    return NextResponse.json({ id: result.lastInsertRowid, name: body.name, isActive: 1 }, { status: 201 });
+
+    return NextResponse.json({ id, name: body.name, isActive: 1, created_at: now }, { status: 201 });
   } catch (error: any) {
-    console.error('Ошибка создания услуги:', error.message);
+    console.error('ADMIN SERVICES POST ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
