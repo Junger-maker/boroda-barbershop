@@ -1,7 +1,6 @@
-import prisma from '@/lib/prisma';
+// app/api/booking/route.ts
+import client from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-
-
 
 const GAS_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
 
@@ -23,27 +22,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Получаем ВСЕ записи на эту дату у этого барбера
-    const bookings = await prisma.booking.findMany({
-      where: {
-        date: date,
-        barber: barber === 'Любой свободный' ? undefined : barber, 
-      },
-      select: { time: true, service: true },
-    });
+    // Формируем SQL-запрос динамически в зависимости от выбора барбера
+    let sql = 'SELECT time, service FROM bookings WHERE date = ?';
+    const args: (string | number | null | boolean)[] = [date];
+    
+    if (barber !== 'Любой свободный') {
+      sql += ' AND barber = ?';
+      args.push(barber);
+    }
+
+    // Выполняем запрос через наш новый HTTP-клиент
+    const result = await client.execute({ sql, args });
+    const bookings = result.rows; // Массив объектов: [{ time: '10:00', service: 'Комплекс' }, ...]
 
     // Собираем ВСЕ занятые слоты (с учётом длительности каждой записи)
     const allBookedTimes: string[] = [];
     
     for (const booking of bookings) {
-      const bookingTime = booking.time;
-      const bookingService = booking.service;
+      const bookingTime = booking.time as string;
+      const bookingService = booking.service as string;
       const bookingDuration = bookingService && SERVICE_DURATIONS[bookingService] ? SERVICE_DURATIONS[bookingService] : 1;
       
-      // Находим индекс времени в массиве слотов
       const startIndex = ALL_TIME_SLOTS.indexOf(bookingTime);
       
-      // Если время найдено, помечаем все смежные слоты как занятые
       if (startIndex !== -1) {
         for (let j = 0; j < bookingDuration; j++) {
           if (startIndex + j < ALL_TIME_SLOTS.length) {
@@ -89,21 +90,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, phone, service, barber, date, time, consent } = body;
 
-    const booking = await prisma.booking.create({
-      data: { 
+    // Создаём запись через HTTP-клиент
+    const result = await client.execute({
+      sql: `INSERT INTO bookings (name, phone, service, barber, date, time, consent) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
         name, 
         phone, 
         service, 
-        barber: barber || null, 
-        date: date || null, 
-        time: time || null, 
-        consent: consent ?? true 
-      },
+        barber || null, 
+        date || null, 
+        time || null, 
+        consent ?? true
+      ]
     });
 
-    console.log(`[BOOKING] New booking #${booking.id}:`, { name, phone, service, barber, date, time });
+    const bookingId = result.lastInsertRowid;
+    console.log(`[BOOKING] New booking #${bookingId}:`, { name, phone, service, barber, date, time });
 
-    // Дублируем в Google Таблицу
+    // Дублируем в Google Таблицу (фоновая задача, не блокирует ответ)
     if (GAS_URL && barber && date && time) {
       fetch(GAS_URL, {
         method: 'POST',
@@ -112,7 +116,7 @@ export async function POST(request: NextRequest) {
       }).catch(err => console.error('[GAS] Ошибка дублирования:', err));
     }
 
-    return NextResponse.json({ success: true, id: booking.id });
+    return NextResponse.json({ success: true, id: bookingId });
   } catch (error) {
     console.error('Критическая ошибка при создании записи:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
