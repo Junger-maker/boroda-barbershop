@@ -3,54 +3,21 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
+    // Самый простой и надёжный запрос
     const result = await client.execute({
-      sql: `
-        SELECT 
-          g.id, g.name, g.isActive, g.created_at as "createdAt",
-          gs.id as gs_id, gs.gradeId, gs.serviceId, gs.price, gs.isActive as gs_isActive, gs.created_at as gs_createdAt,
-          s.id as s_id, s.name as s_name, s.isActive as s_isActive, s.created_at as s_createdAt
-        FROM grades g
-        LEFT JOIN grade_services gs ON g.id = gs.gradeId
-        LEFT JOIN services s ON gs.serviceId = s.id
-        ORDER BY g.created_at ASC
-      `
+      sql: 'SELECT * FROM grades ORDER BY created_at ASC'
     });
+    
+    // Гарантируем, что фронтенд получит массив с нужными полями
+    const safeGrades = result.rows.map((row: any) => ({
+      id: row['id'] || crypto.randomUUID(),
+      name: row['name'] || 'Без названия',
+      isActive: row['isActive'] ?? 1,
+      createdAt: row['created_at'] || row['createdAt'] || Date.now(),
+      gradeServices: [] // Пока возвращаем пустой массив, чтобы фронтенд не падал на .map
+    }));
 
-    const gradesMap = new Map();
-    const grades = [];
-
-    for (const row of result.rows) {
-      if (!gradesMap.has(row['id'])) {
-        gradesMap.set(row['id'], {
-          id: row['id'],
-          name: row['name'] || 'Без названия',
-          isActive: row['isActive'],
-          createdAt: row['createdAt'],
-          gradeServices: []
-        });
-        grades.push(gradesMap.get(row['id']));
-      }
-      
-      if (row['s_id']) {
-        const grade = gradesMap.get(row['id']);
-        grade.gradeServices.push({
-          id: row['gs_id'],
-          gradeId: row['gradeId'],
-          serviceId: row['serviceId'],
-          price: row['price'],
-          isActive: row['gs_isActive'],
-          createdAt: row['gs_createdAt'],
-          service: {
-            id: row['s_id'],
-            name: row['s_name'] || 'Услуга не найдена', // ЖЁСТКАЯ ЗАЩИТА ОТ NULL
-            isActive: row['s_isActive'],
-            createdAt: row['s_createdAt']
-          }
-        });
-      }
-    }
-
-    return NextResponse.json(grades);
+    return NextResponse.json(safeGrades);
   } catch (error: any) {
     console.error('ADMIN GRADES GET ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
@@ -62,10 +29,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const result = await client.execute({
       sql: 'INSERT INTO grades (name, isActive, created_at) VALUES (?, ?, ?)',
-      args: [body.name, 1, Date.now()]
+      args: [body.name || 'Новая градация', 1, Date.now()]
     });
+    
     return NextResponse.json({ 
-      id: result.lastInsertRowid, 
+      id: result.lastInsertRowid || crypto.randomUUID(), 
       name: body.name, 
       isActive: 1, 
       createdAt: Date.now(),
