@@ -23,7 +23,7 @@ export async function GET() {
       if (!gradesMap.has(row['id'])) {
         const grade = {
           id: row['id'],
-          name: row['name'],
+          name: row['name'] || 'Без названия',
           isActive: row['isActive'],
           createdAt: row['createdAt'],
           gradeServices: []
@@ -32,7 +32,6 @@ export async function GET() {
         grades.push(grade);
       }
       
-      // Если есть привязанная услуга, добавляем её в массив
       if (row['s_id']) {
         const grade = gradesMap.get(row['id']);
         grade.gradeServices.push({
@@ -44,7 +43,7 @@ export async function GET() {
           createdAt: row['gs_createdAt'],
           service: {
             id: row['s_id'],
-            name: row['s_name'],
+            name: row['s_name'] || 'Удаленная услуга', // ЗАЩИТА ОТ NULL
             isActive: row['s_isActive'],
             createdAt: row['s_createdAt']
           }
