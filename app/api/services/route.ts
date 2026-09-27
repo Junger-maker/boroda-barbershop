@@ -1,22 +1,28 @@
-// app/api/services/route.ts
 import client from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
     const result = await client.execute({
-      sql: `SELECT id, name, isActive, created_at as "createdAt" FROM services WHERE isActive = 1 ORDER BY name ASC`
+      sql: `SELECT id, name, isActive, created_at as "createdAt" FROM services ORDER BY name ASC`
     });
-
-    const services = result.rows.map(row => ({
-      id: row['id'],
-      name: row['name'],
-      isActive: row['isActive'],
-      createdAt: row['createdAt']
-    }));
-
-    return NextResponse.json(services);
+    return NextResponse.json(result.rows);
   } catch (error: any) {
+    console.error('ADMIN SERVICES GET ERROR:', error.message);
+    return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const result = await client.execute({
+      sql: `INSERT INTO services (name, isActive, created_at) VALUES (?, ?, ?)`,
+      args: [body.name, 1, Date.now()]
+    });
+    return NextResponse.json({ id: result.lastInsertRowid, name: body.name, isActive: 1 }, { status: 201 });
+  } catch (error: any) {
+    console.error('ADMIN SERVICES POST ERROR:', error.message);
     return NextResponse.json({ error: 'Ошибка сервера', details: error.message }, { status: 500 });
   }
 }
