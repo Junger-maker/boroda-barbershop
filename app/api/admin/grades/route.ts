@@ -4,22 +4,9 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const result = await client.execute({ sql: 'SELECT * FROM grades' });
-    
-    const grades = (result.rows || []).map((row: any) => {
-      const keys = Object.keys(row);
-      const idKey = keys.find(k => k.toLowerCase() === 'id') || keys[0];
-      const nameKey = keys.find(k => k.toLowerCase() === 'name') || keys[1];
-      
-      return {
-        id: String(row[idKey] || crypto.randomUUID()),
-        name: String(row[nameKey] || 'Без названия'),
-      };
-    });
-
-    console.log('✅ GRADES API returned:', grades);
-    return NextResponse.json(grades);
+    return NextResponse.json(result.rows || []);
   } catch (error: any) {
-    console.error('❌ GRADES GET ERROR:', error.message);
+    console.error('GRADES GET ERROR:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -27,22 +14,15 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const name = body.name || body.Name || 'Новая градация';
-    
-    const result = await client.execute({
-      sql: 'INSERT INTO grades (name) VALUES (?)',
-      args: [name]
+    await client.execute({
+      sql: 'INSERT INTO grades (name, isActive, created_at) VALUES (?, ?, ?)',
+      args: [body.name, 1, Date.now()]
     });
     
-    const newGrade = {
-      id: String(result.lastInsertRowid || crypto.randomUUID()),
-      name: name
-    };
-    
-    console.log('✅ Created grade:', newGrade);
-    return NextResponse.json(newGrade, { status: 201 });
+    const grades = await client.execute({ sql: 'SELECT * FROM grades ORDER BY created_at DESC LIMIT 1' });
+    return NextResponse.json(grades.rows[0] || {}, { status: 201 });
   } catch (error: any) {
-    console.error('❌ GRADES POST ERROR:', error.message);
+    console.error('GRADES POST ERROR:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -50,22 +30,15 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const id = body.id;
-    const name = body.name || body.Name;
-    
-    if (!id || !name) {
-      return NextResponse.json({ error: 'Missing id or name' }, { status: 400 });
-    }
-    
     await client.execute({
       sql: 'UPDATE grades SET name = ? WHERE id = ?',
-      args: [name, id]
+      args: [body.name, body.id]
     });
     
-    console.log('✅ Updated grade:', { id, name });
-    return NextResponse.json({ id, name });
+    const grades = await client.execute({ sql: 'SELECT * FROM grades WHERE id = ?', args: [body.id] });
+    return NextResponse.json(grades.rows[0] || {});
   } catch (error: any) {
-    console.error('❌ GRADES PUT ERROR:', error.message);
+    console.error('GRADES PUT ERROR:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -74,20 +47,10 @@ export async function DELETE(request: Request) {
   try {
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-    }
-    
-    await client.execute({
-      sql: 'DELETE FROM grades WHERE id = ?',
-      args: [id]
-    });
-    
-    console.log('✅ Deleted grade:', id);
+    await client.execute({ sql: 'DELETE FROM grades WHERE id = ?', args: [id] });
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('❌ GRADES DELETE ERROR:', error.message);
+    console.error('GRADES DELETE ERROR:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
