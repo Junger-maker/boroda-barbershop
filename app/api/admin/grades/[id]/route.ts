@@ -6,29 +6,31 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const body = await request.json();
     
-    console.log('🔍 GRADE PUT PAYLOAD:', { id, servicesCount: body.services?.length });
+    console.log('🔍 GRADE PUT PAYLOAD:', JSON.stringify(body, null, 2));
 
-    // 1. Обновляем название градации
     await client.execute({
       sql: 'UPDATE grades SET name = ? WHERE id = ?',
       args: [body.name, id]
     });
     
-    // 2. Если пришли услуги с ценами, обновляем их
     if (body.services && Array.isArray(body.services)) {
-      // Сначала удаляем старые привязки для этой градации
       await client.execute({
         sql: 'DELETE FROM grade_services WHERE gradeId = ?',
         args: [id]
       });
       
-      // Затем добавляем новые
       for (const s of body.services) {
-        const serviceId = s.serviceId || s.id;
+        // Извлекаем ID, даже если он завёрнут в объект
+        let serviceId = s.serviceId || s.id;
+        
+        // Если serviceId всё ещё объект, берём его id
+        if (typeof serviceId === 'object' && serviceId !== null && 'id' in serviceId) {
+          serviceId = (serviceId as any).id;
+        }
         
         if (!serviceId) {
           console.warn('⚠️ Пропущена услуга без serviceId:', s);
-          continue; // Пропускаем некорректные данные
+          continue;
         }
         
         try {
@@ -43,9 +45,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
               Date.now()
             ]
           });
+          console.log('✅ Привязана услуга:', serviceId);
         } catch (insertError: any) {
           console.error('❌ Ошибка вставки grade_services:', insertError.message, { gradeId: id, serviceId });
-          throw new Error(`Не удалось привязать услугу (ID: ${serviceId}). Возможно, она была удалена из базы.`);
+          throw new Error(`Не удалось привязать услугу (ID: ${serviceId}). Проверьте, существует ли она.`);
         }
       }
     }
