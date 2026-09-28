@@ -27,24 +27,39 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
 
   const result = executeResult.response.result;
   
-  // 1. Извлекаем имена колонок
   const columnNames = (result.cols || []).map((col: any) => {
     if (typeof col === 'object' && col !== null && 'name' in col) return String(col.name);
     return String(col);
   });
 
-  // 2. Извлекаем чистые значения
   const rows = (result.rows || []).map((row: any) => {
     const obj: Record<string, any> = {};
+    
+    // Вариант А: Turso вернул массив массивов (стандарт)
     if (Array.isArray(row)) {
       columnNames.forEach((colName: string, index: number) => {
         let val = row[index];
-        // Если Turso завернул значение в объект {type: '...', value: '...'}, достаём value
-        if (typeof val === 'object' && val !== null && 'value' in val) {
-          val = val.value;
-        }
-        obj[colName] = val;
+        if (typeof val === 'object' && val !== null && 'value' in val) val = val.value;
+        if (colName !== '[object Object]') obj[colName] = val;
       });
+    } 
+    // Вариант Б: Turso вернул массив объектов (редкий случай)
+    else if (typeof row === 'object' && row !== null) {
+      let validColIndex = 0;
+      for (const key in row) {
+        let val = row[key];
+        if (typeof val === 'object' && val !== null && 'value' in val) val = val.value;
+        
+        if (key !== '[object Object]') {
+          obj[key] = val;
+        } else {
+          // Если ключ сломан, восстанавливаем его по порядку из columnNames
+          if (validColIndex < columnNames.length) {
+            obj[columnNames[validColIndex]] = val;
+          }
+          validColIndex++;
+        }
+      }
     }
     return obj;
   });
