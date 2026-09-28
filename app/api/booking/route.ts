@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ availableTimes });
   } catch (error: any) {
     console.error('BOOKING GET ERROR:', error.message);
-    return NextResponse.json({ availableTimes: ALL_TIME_SLOTS }); // Fallback, чтобы сайт не ломался
+    return NextResponse.json({ availableTimes: ALL_TIME_SLOTS });
   }
 }
 
@@ -71,9 +71,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, phone, service, barber, date, time, consent } = body;
 
+    console.log('📝 Попытка создать запись:', { name, phone, service, barber, date, time, consent });
+
     const result = await client.execute({
       sql: `INSERT INTO bookings (name, phone, service, barber, date, time, consent) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [name, phone, service, barber || null, date || null, time || null, consent ?? true]
+      args: [
+        String(name), 
+        String(phone), 
+        String(service), 
+        barber ? String(barber) : null, 
+        date ? String(date) : null, 
+        time ? String(time) : null, 
+        consent ? 1 : 0
+      ]
     });
 
     if (GAS_URL && barber && date && time) {
@@ -86,7 +96,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, id: result.lastInsertRowid });
   } catch (error: any) {
-    console.error('BOOKING POST ERROR:', error.message);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+    // ВОТ ЗДЕСЬ МЫ ТЕПЕРЬ УВИДИМ НАСТОЯЩУЮ ПРИЧИНУ!
+    console.error('❌ BOOKING POST REAL ERROR:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
