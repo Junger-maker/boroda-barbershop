@@ -73,9 +73,14 @@ export async function POST(request: NextRequest) {
 
     console.log('📝 Попытка создать запись:', { name, phone, service, barber, date, time, consent });
 
+    // ГЕНЕРИРУЕМ УНИКАЛЬНЫЙ ID ДЛЯ ЗАПИСИ
+    const newBookingId = crypto.randomUUID();
+
     const result = await client.execute({
-      sql: `INSERT INTO bookings (name, phone, service, barber, date, time, consent) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      // ДОБАВИЛИ 'id' ПЕРВЫМ АРГУМЕНТОМ
+      sql: `INSERT INTO bookings (id, name, phone, service, barber, date, time, consent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
+        newBookingId, // <-- Вот это исправляет ошибку NOT NULL
         String(name), 
         String(phone), 
         String(service), 
@@ -94,9 +99,8 @@ export async function POST(request: NextRequest) {
       }).catch(err => console.error('[GAS] Error:', err));
     }
 
-    return NextResponse.json({ success: true, id: result.lastInsertRowid });
+    return NextResponse.json({ success: true, id: newBookingId });
   } catch (error: any) {
-    // ВОТ ЗДЕСЬ МЫ ТЕПЕРЬ УВИДИМ НАСТОЯЩУЮ ПРИЧИНУ!
     console.error('❌ BOOKING POST REAL ERROR:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
