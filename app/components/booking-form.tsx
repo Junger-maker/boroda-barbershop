@@ -7,7 +7,7 @@ import { useScrollAnimation } from './use-scroll-animation';
 function formatPhone(value: string): string {
   const digits = (value ?? '').replace(/\D/g, '');
   const d = digits?.startsWith?.('7') ? digits : digits?.startsWith?.('8') ? '7' + digits?.slice?.(1) : '7' + digits;
-  let result = "'+7";
+  let result = '+7';
   if ((d?.length ?? 0) > 1) result += ' (' + d?.slice?.(1, 4);
   if ((d?.length ?? 0) > 4) result += ') ' + d?.slice?.(4, 7);
   if ((d?.length ?? 0) > 7) result += '-' + d?.slice?.(7, 9);
@@ -37,7 +37,10 @@ export default function BookingForm() {
   const ref = useScrollAnimation();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [service, setService] = useState('');
+  
+  // ИЗМЕНЕНИЕ 1: Теперь храним ID услуги для фильтрации, а не её название
+  const [serviceId, setServiceId] = useState('');
+  
   const [barber, setBarber] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
@@ -55,20 +58,40 @@ export default function BookingForm() {
   useEffect(() => {
     Promise.all([
       fetch('/api/services').then(r => r.json()),
-      fetch('/api/barbers').then(r => r.json()),
+      fetch('/api/barbers').then(r => r.json()), // Загружаем всех барберов изначально
     ]).then(([services, barbers]) => {
       setServicesList(services);
       setBarbersList(barbers);
     }).catch(err => console.error('Ошибка загрузки:', err));
   }, []);
 
-  // 2. Загрузка свободного времени при изменении параметров
+  // ИЗМЕНЕНИЕ 2: Перезагружаем список барберов при смене услуги
   useEffect(() => {
-    if (showDateTime && barber && selectedDate && service) {
+    const fetchFilteredBarbers = async () => {
+      try {
+        // Если услуга выбрана, запрашиваем только подходящих барберов
+        const url = serviceId ? `/api/barbers?serviceId=${serviceId}` : '/api/barbers';
+        const res = await fetch(url);
+        const data = await res.json();
+        setBarbersList(data);
+      } catch (err) {
+        console.error('Ошибка загрузки отфильтрованных барберов:', err);
+      }
+    };
+    
+    fetchFilteredBarbers();
+  }, [serviceId]);
+
+  // 3. Загрузка свободного времени при изменении параметров
+  useEffect(() => {
+    if (showDateTime && barber && selectedDate && serviceId) {
       setIsLoadingTime(true);
       const fetchAvailability = async () => {
         try {
-          const res = await fetch(`/api/booking?barber=${encodeURIComponent(barber)}&date=${selectedDate}&service=${encodeURIComponent(service)}`);
+          // Для API расписания нам всё ещё нужно название услуги (для расчёта длительности)
+          const serviceName = servicesList.find((s: any) => s.id === serviceId)?.name || '';
+          
+          const res = await fetch(`/api/booking?barber=${encodeURIComponent(barber)}&date=${selectedDate}&service=${encodeURIComponent(serviceName)}`);
           const data = await res.json();
           setAvailableTimesFromApi(data.availableTimes || []);
           setSelectedTime('');
@@ -83,14 +106,23 @@ export default function BookingForm() {
       setAvailableTimesFromApi([]);
       setIsLoadingTime(false);
     }
-  }, [barber, selectedDate, service, showDateTime]);
+  }, [barber, selectedDate, serviceId, showDateTime, servicesList]);
 
   const availableDates = useMemo(() => {
     return getNext7Days();
   }, []);
 
+  // ИЗМЕНЕНИЕ 3: При смене барбера сбрасываем дату и время
   const handleBarberChange = useCallback((value: string) => {
     setBarber(value);
+    setSelectedDate('');
+    setSelectedTime('');
+  }, []);
+
+  // ИЗМЕНЕНИЕ 4: При смене услуги сбрасываем барбера, дату и время
+  const handleServiceChange = useCallback((value: string) => {
+    setServiceId(value);
+    setBarber(''); // Сбрасываем барбера, так как он может не делать новую услугу
     setSelectedDate('');
     setSelectedTime('');
   }, []);
@@ -105,26 +137,29 @@ export default function BookingForm() {
     if (!(name ?? '').trim()) e.name = 'Введите имя';
     const phoneDigits = (phone ?? '').replace(/\D/g, '');
     if ((phoneDigits?.length ?? 0) < 11) e.phone = 'Введите корректный номер телефона';
-    if (!service) e.service = 'Выберите услугу';
+    if (!serviceId) e.service = 'Выберите услугу';
     if (showDateTime && !selectedDate) e.date = 'Выберите дату';
     if (showDateTime && !selectedTime) e.time = 'Выберите время';
     if (!consent) e.consent = 'Необходимо дать согласие';
     setErrors(e);
     return Object.keys(e ?? {})?.length === 0;
-  }, [name, phone, service, showDateTime, selectedDate, selectedTime, consent]);
+  }, [name, phone, serviceId, showDateTime, selectedDate, selectedTime, consent]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e?.preventDefault?.();
     if (!validate()) return;
     setStatus('loading');
     try {
+      // Находим название услуги по ID для отправки на бэкенд
+      const selectedServiceName = servicesList.find((s: any) => s.id === serviceId)?.name || serviceId;
+
       const res = await fetch('/api/booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name?.trim?.(),
           phone,
-          service,
+          service: selectedServiceName, // Отправляем название, как ожидает бэкенд
           barber,
           date: selectedDate,
           time: selectedTime,
@@ -135,7 +170,7 @@ export default function BookingForm() {
         setStatus('success');
         setName('');
         setPhone('');
-        setService('');
+        setServiceId('');
         setBarber('');
         setSelectedDate('');
         setSelectedTime('');
@@ -146,7 +181,7 @@ export default function BookingForm() {
     } catch {
       setStatus('error');
     }
-  }, [name, phone, service, barber, selectedDate, selectedTime, consent, validate]);
+  }, [name, phone, serviceId, servicesList, barber, selectedDate, selectedTime, consent, validate]);
 
   return (
     <section id="booking" className="py-20 sm:py-28 bg-muted/30">
@@ -208,15 +243,15 @@ export default function BookingForm() {
               <div>
                 <label className="block text-sm font-medium mb-2">Услуга</label>
                 <select
-                  value={service}
-                  onChange={(e: any) => setService(e?.target?.value ?? '')}
+                  value={serviceId}
+                  onChange={(e: any) => handleServiceChange(e?.target?.value ?? '')}
                   className={`w-full bg-muted rounded px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-primary appearance-none ${
                     errors?.service ? 'ring-2 ring-red-500' : ''
-                  } ${!service ? 'text-muted-foreground' : ''}`}
+                  } ${!serviceId ? 'text-muted-foreground' : ''}`}
                 >
                   <option value="">Выберите услугу</option>
                   {servicesList?.map?.((s: any) => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   )) ?? []}
                 </select>
                 {errors?.service && <p className="text-red-400 text-xs mt-1">{errors?.service}</p>}
@@ -229,10 +264,13 @@ export default function BookingForm() {
                   value={barber}
                   onChange={(e: any) => handleBarberChange(e?.target?.value ?? '')}
                   className="w-full bg-muted rounded px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-primary appearance-none"
+                  disabled={!serviceId} // Блокируем выбор барбера, пока не выбрана услуга
                 >
-                  <option value="">Любой свободный</option>
+                  <option value="">{serviceId ? 'Любой свободный мастер для этой услуги' : 'Сначала выберите услугу'}</option>
                   {barbersList?.map?.((b: any) => (
-                    <option key={b.id} value={b.name}>{b.name}</option>
+                    <option key={b.id} value={b.name}>
+                      {b.name} {b.grade ? `(${b.grade.name})` : ''}
+                    </option>
                   )) ?? []}
                 </select>
               </div>
@@ -299,7 +337,7 @@ export default function BookingForm() {
                         }) ?? []
                       ) : (
                         <p className="text-muted-foreground text-sm col-span-3 text-center py-2">
-                          {barber && selectedDate && service ? 'Нет свободного времени на эту дату' : 'Выберите услугу, барбера и дату'}
+                          {barber && selectedDate && serviceId ? 'Нет свободного времени на эту дату' : 'Выберите услугу, барбера и дату'}
                         </p>
                       )}
                     </div>
