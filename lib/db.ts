@@ -1,4 +1,3 @@
-// CACHE BUSTER: 8f3a9b2c-4d1e-4a5b-9c8d-7e6f5a4b3c2d
 type ExecuteOptions = { sql: string; args?: (string | number | null | boolean)[] };
 type ExecuteResult = { rows: Record<string, any>[]; columns: string[]; rowsAffected: number; lastInsertRowid: number | bigint | null };
 
@@ -28,19 +27,19 @@ async function execute(options: ExecuteOptions): Promise<ExecuteResult> {
 
   const result = executeResult.response.result;
   
-  // 1. Надёжное извлечение имён колонок (обрабатывает и строки, и объекты {name: "..."})
+  // 1. Извлекаем имена колонок
   const columnNames = (result.cols || []).map((col: any) => {
     if (typeof col === 'object' && col !== null && 'name' in col) return String(col.name);
     return String(col);
   });
 
-  // 2. Надёжное преобразование строк в объекты
+  // 2. Извлекаем чистые значения
   const rows = (result.rows || []).map((row: any) => {
     const obj: Record<string, any> = {};
     if (Array.isArray(row)) {
       columnNames.forEach((colName: string, index: number) => {
         let val = row[index];
-        // Извлекаем чистое значение, если оно завёрнуто в {type: "...", value: "..."}
+        // Если Turso завернул значение в объект {type: '...', value: '...'}, достаём value
         if (typeof val === 'object' && val !== null && 'value' in val) {
           val = val.value;
         }
