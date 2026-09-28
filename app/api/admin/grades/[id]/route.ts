@@ -6,56 +6,49 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const body = await request.json();
     
-    console.log('🔍 GRADE PUT PAYLOAD:', JSON.stringify(body, null, 2));
+    console.log('🔍 GRADE PUT START:', { id, servicesCount: body.services?.length });
 
+    // 1. Обновляем название градации
     await client.execute({
       sql: 'UPDATE grades SET name = ? WHERE id = ?',
       args: [body.name, id]
     });
     
-    if (body.services && Array.isArray(body.services)) {
-      await client.execute({
-        sql: 'DELETE FROM grade_services WHERE gradeId = ?',
-        args: [id]
-      });
-      
+    // 2. ЖЕСТКО удаляем ВСЕ старые привязки услуг для этой градации
+    const deleteResult = await client.execute({
+      sql: 'DELETE FROM grade_services WHERE gradeId = ?',
+      args: [id]
+    });
+    console.log('🗑️ Deleted old grade_services:', deleteResult.rowsAffected);
+    
+    // 3. Если пришли новые услуги, добавляем их
+    if (body.services && Array.isArray(body.services) && body.services.length > 0) {
       for (const s of body.services) {
-        // Извлекаем ID, даже если он завёрнут в объект
-        let serviceId = s.serviceId || s.id;
+        const serviceId = s.serviceId || s.id;
         
-        // Если serviceId всё ещё объект, берём его id
-        if (typeof serviceId === 'object' && serviceId !== null && 'id' in serviceId) {
-          serviceId = (serviceId as any).id;
-        }
-        
-        if (!serviceId) {
-          console.warn('⚠️ Пропущена услуга без serviceId:', s);
+        if (!serviceId || typeof serviceId !== 'string' || serviceId === '[object Object]') {
+          console.warn('⚠️ Пропущена некорректная услуга:', s);
           continue;
         }
         
-        try {
-          await client.execute({
-            sql: 'INSERT INTO grade_services (id, gradeId, serviceId, price, isActive, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-            args: [
-              crypto.randomUUID(),
-              String(id),
-              String(serviceId),
-              Number(s.price) || 0,
-              s.isActive ? 1 : 0,
-              Date.now()
-            ]
-          });
-          console.log('✅ Привязана услуга:', serviceId);
-        } catch (insertError: any) {
-          console.error('❌ Ошибка вставки grade_services:', insertError.message, { gradeId: id, serviceId });
-          throw new Error(`Не удалось привязать услугу (ID: ${serviceId}). Проверьте, существует ли она.`);
-        }
+        await client.execute({
+          sql: 'INSERT INTO grade_services (id, gradeId, serviceId, price, isActive, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          args: [
+            crypto.randomUUID(),
+            String(id),
+            String(serviceId),
+            Number(s.price) || 0,
+            s.isActive ? 1 : 0,
+            Date.now()
+          ]
+        });
       }
     }
     
+    console.log('✅ GRADE PUT SUCCESS');
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('GRADE PUT ERROR:', error.message);
+    console.error('❌ GRADE PUT ERROR:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
