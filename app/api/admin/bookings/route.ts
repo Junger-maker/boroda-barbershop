@@ -1,7 +1,11 @@
 import client from '@/lib/db';
+import { requireAdmin } from '@/lib/admin-auth';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
+  const auth = await requireAdmin('read');
+  if ('response' in auth) return auth.response;
+
   try {
     const result = await client.execute({
       sql: 'SELECT id, name, phone, service, barber, date, time, consent, created_at as "createdAt" FROM bookings ORDER BY created_at DESC'
@@ -19,6 +23,21 @@ export async function GET() {
       createdAt: row['createdAt']
     }));
 
+    // В тестовом режиме не отдаём персональные данные даже в ответе API.
+    if (auth.session.role === 'demo') {
+      return NextResponse.json(
+        safeBookings.map((booking: any) => ({
+          id: booking.id,
+          name: '*',
+          phone: '*',
+          service: '*',
+          barber: '*',
+          date: '*',
+          time: '*',
+        })),
+      );
+    }
+
     return NextResponse.json(safeBookings);
   } catch (error: any) {
     console.error('ADMIN BOOKINGS GET ERROR:', error.message);
@@ -27,6 +46,9 @@ export async function GET() {
 }
 
 export async function DELETE(request: Request) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

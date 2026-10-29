@@ -1,7 +1,11 @@
 import client from '@/lib/db';
+import { requireAdmin } from '@/lib/admin-auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -28,6 +32,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const { id } = await params;
     await client.execute({ sql: 'DELETE FROM barbers WHERE id = ?', args: [id] });

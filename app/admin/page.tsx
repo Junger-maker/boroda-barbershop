@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Trash2, Users, Calendar, Briefcase, LogOut, Plus, Edit2, Save, X, Award } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Trash2, Users, Calendar, Briefcase, LogOut, Plus, Edit2, Save, X, Award, ShieldAlert } from 'lucide-react';
 import PhotoUploader from '@/components/photo-uploader';
 
+type AdminRole = 'full' | 'demo';
+
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // undefined — проверяем сохранённую сессию, null — не авторизован
+  const [role, setRole] = useState<AdminRole | null | undefined>(undefined);
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<'bookings' | 'barbers' | 'services' | 'grades'>('bookings');
   
@@ -24,27 +27,78 @@ export default function AdminPage() {
   const [editingGrade, setEditingGrade] = useState<any>(null);
   const [newGrade, setNewGrade] = useState({ name: '' });
 
-  const ADMIN_PASSWORD = 'boroda2024';
+  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const isDemo = role === 'demo';
+
+  const showNoPermission = () => setPermissionDialogOpen(true);
+
+  const ensureCanEdit = () => {
+    if (isDemo) {
+      setPermissionDialogOpen(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      loadData();
-    } else {
-      alert('Неверный пароль');
+
+    try {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data?.error || 'Неверный пароль');
+        return;
+      }
+
+      setPassword('');
+      setRole(data?.role === 'demo' ? 'demo' : 'full');
+    } catch (error) {
+      console.error('Ошибка входа:', error);
+      alert('Ошибка сети');
     }
   };
 
-  const loadData = async () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/auth', { method: 'DELETE' });
+    } catch (error) {
+      console.error('Ошибка выхода:', error);
+    }
+
+    setRole(null);
+    setPassword('');
+    setBookings([]);
+    setBarbers([]);
+    setServices([]);
+    setGrades([]);
+    setEditingBarber(null);
+    setEditingService(null);
+    setEditingGrade(null);
+  };
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [bookingsRes, barbersRes, servicesRes, gradesRes] = await Promise.all([
-        fetch('/api/admin/bookings'),
-        fetch('/api/admin/barbers'),
-        fetch('/api/admin/services'),
-        fetch('/api/admin/grades'),
+      const responses = await Promise.all([
+        fetch('/api/admin/bookings', { cache: 'no-store' }),
+        fetch('/api/admin/barbers', { cache: 'no-store' }),
+        fetch('/api/admin/services', { cache: 'no-store' }),
+        fetch('/api/admin/grades', { cache: 'no-store' }),
       ]);
+
+      if (responses.some((res) => res.status === 401)) {
+        setRole(null);
+        return;
+      }
+
+      const [bookingsRes, barbersRes, servicesRes, gradesRes] = responses;
       setBookings(await bookingsRes.json());
       setBarbers(await barbersRes.json());
       setServices(await servicesRes.json());
@@ -54,9 +108,50 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/auth', { cache: 'no-store' });
+        if (!res.ok) {
+          if (!cancelled) setRole(null);
+          return;
+        }
+
+        const data = await res.json();
+        if (!cancelled) setRole(data.role === 'demo' ? 'demo' : 'full');
+      } catch {
+        if (!cancelled) setRole(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (role) {
+      void loadData();
+    }
+  }, [role, loadData]);
+
+  useEffect(() => {
+    if (!permissionDialogOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPermissionDialogOpen(false);
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [permissionDialogOpen]);
 
   const handleDeleteBooking = async (id: string) => {
+    if (!ensureCanEdit()) return;
     if (!confirm('Удалить эту запись?')) return;
     try {
       await fetch(`/api/admin/bookings?id=${id}`, { method: 'DELETE' });
@@ -68,6 +163,7 @@ export default function AdminPage() {
 
   // === БАРБЕРЫ ===
   const handleAddBarber = async () => {
+    if (!ensureCanEdit()) return;
     if (!newBarber.name.trim()) return;
     try {
       const res = await fetch('/api/admin/barbers', {
@@ -89,6 +185,7 @@ export default function AdminPage() {
   };
 
   const handleUpdateBarber = async () => {
+    if (!ensureCanEdit()) return;
     if (!editingBarber) return;
     try {
       const res = await fetch(`/api/admin/barbers/${editingBarber.id}`, {
@@ -118,6 +215,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteBarber = async (id: string) => {
+    if (!ensureCanEdit()) return;
     if (!confirm('Удалить этого барбера?')) return;
     try {
       await fetch(`/api/admin/barbers?id=${id}`, { method: 'DELETE' });
@@ -129,6 +227,7 @@ export default function AdminPage() {
 
   // === УСЛУГИ ===
   const handleAddService = async () => {
+    if (!ensureCanEdit()) return;
     if (!newService.name.trim()) return;
     try {
       const res = await fetch('/api/admin/services', {
@@ -149,6 +248,7 @@ export default function AdminPage() {
   };
 
   const handleUpdateService = async () => {
+    if (!ensureCanEdit()) return;
     if (!editingService) return;
     try {
       const res = await fetch(`/api/admin/services/${editingService.id}`, {
@@ -173,6 +273,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteService = async (id: string) => {
+    if (!ensureCanEdit()) return;
     if (!confirm('Удалить эту услугу?')) return;
     try {
       await fetch(`/api/admin/services?id=${id}`, { method: 'DELETE' });
@@ -184,6 +285,7 @@ export default function AdminPage() {
 
   // === ГРАДАЦИИ ===
   const handleAddGrade = async () => {
+    if (!ensureCanEdit()) return;
     if (!newGrade.name.trim()) return;
     try {
       const res = await fetch('/api/admin/grades', {
@@ -204,6 +306,7 @@ export default function AdminPage() {
   };
 
   const handleUpdateGrade = async () => {
+    if (!ensureCanEdit()) return;
     if (!editingGrade) return;
     try {
       // Формируем массив услуг в формате, который ожидает бэкенд: { id: serviceId, price, isActive }
@@ -238,6 +341,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteGrade = async (id: string) => {
+    if (!ensureCanEdit()) return;
     if (!confirm('Удалить эту градацию?')) return;
     try {
       await fetch(`/api/admin/grades/${id}`, { method: 'DELETE' });
@@ -277,7 +381,15 @@ export default function AdminPage() {
     setEditingGrade(updatedGrade);
   };
 
-  if (!isAuthenticated) {
+  if (role === undefined) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (role === null) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="bg-gray-800 p-8 rounded-lg shadow-xl max-w-md w-full">
@@ -304,7 +416,7 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Админ-панель Boroda Barbershop</h1>
-          <button onClick={() => setIsAuthenticated(false)} className="flex items-center gap-2 text-gray-400 hover:text-white transition">
+          <button onClick={handleLogout} className="flex items-center gap-2 text-gray-400 hover:text-white transition">
             <LogOut className="w-5 h-5" /> Выйти
           </button>
         </div>
@@ -407,6 +519,8 @@ export default function AdminPage() {
                       currentPhoto={newBarber.photo}
                       onUploadComplete={(url) => setNewBarber({ ...newBarber, photo: url })}
                       label="Выбрать фото"
+                      disabled={isDemo}
+                      onDisabledClick={showNoPermission}
                     />
                   </div>
 
@@ -447,6 +561,8 @@ export default function AdminPage() {
                               currentPhoto={editingBarber.photo}
                               onUploadComplete={(url) => setEditingBarber({ ...editingBarber, photo: url })}
                               label="Выбрать новое фото"
+                              disabled={isDemo}
+                              onDisabledClick={showNoPermission}
                             />
                           </div>
                           
@@ -644,6 +760,41 @@ export default function AdminPage() {
           </>
         )}
       </div>
+
+      {permissionDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPermissionDialogOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="permission-dialog-title"
+            className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-800 p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-red-500/15">
+                <ShieldAlert className="h-6 w-6 text-red-500" />
+              </div>
+              <div>
+                <h2 id="permission-dialog-title" className="text-xl font-semibold text-white">
+                  Нет прав
+                </h2>
+                <p className="mt-2 text-gray-300">У вас нет прав вносить изменения</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPermissionDialogOpen(false)}
+              className="mt-6 w-full rounded-lg bg-red-600 py-3 font-semibold text-white transition hover:bg-red-700"
+            >
+              Понятно
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

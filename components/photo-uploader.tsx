@@ -7,9 +7,17 @@ interface PhotoUploaderProps {
   onUploadComplete: (url: string) => void;
   currentPhoto?: string | null;
   label?: string;
+  disabled?: boolean;
+  onDisabledClick?: () => void;
 }
 
-export default function PhotoUploader({ onUploadComplete, currentPhoto, label = 'Загрузить фото' }: PhotoUploaderProps) {
+export default function PhotoUploader({
+  onUploadComplete,
+  currentPhoto,
+  label = 'Загрузить фото',
+  disabled = false,
+  onDisabledClick,
+}: PhotoUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentPhoto || null);
 
@@ -40,6 +48,12 @@ export default function PhotoUploader({ onUploadComplete, currentPhoto, label = 
     }
   };
 
+  const handleDisabledClick = (event: React.MouseEvent) => {
+    if (!disabled) return;
+    event.preventDefault();
+    onDisabledClick?.();
+  };
+
   return (
     <div className="space-y-3">
       {preview && (
@@ -53,13 +67,16 @@ export default function PhotoUploader({ onUploadComplete, currentPhoto, label = 
       )}
       
       <div className="flex flex-col items-center gap-2">
-        <label className="cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <label
+          onClick={handleDisabledClick}
+          className="cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {isUploading ? '⏳ Загрузка...' : label}
           <input
             type="file"
             accept="image/*"
             onChange={handleFileChange}
-            disabled={isUploading}
+            disabled={isUploading || disabled}
             className="hidden"
           />
         </label>
@@ -72,6 +89,10 @@ export default function PhotoUploader({ onUploadComplete, currentPhoto, label = 
           <button
             type="button"
             onClick={() => {
+              if (disabled) {
+                onDisabledClick?.();
+                return;
+              }
               setPreview(null);
               onUploadComplete('');
             }}

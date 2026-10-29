@@ -1,7 +1,11 @@
 import client from '@/lib/db';
+import { requireAdmin } from '@/lib/admin-auth';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
+  const auth = await requireAdmin('read');
+  if ('response' in auth) return auth.response;
+
   try {
     // Делаем JOIN, чтобы получить услуги и их цены для каждой градации
     const result = await client.execute({
@@ -56,6 +60,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const body = await request.json();
     const result = await client.execute({

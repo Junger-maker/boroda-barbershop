@@ -1,9 +1,12 @@
-import prisma from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import path from 'path';
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;

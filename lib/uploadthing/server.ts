@@ -1,5 +1,6 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
+import { ADMIN_SESSION_COOKIE, readAdminSessionToken } from "@/lib/admin-auth";
 
 const f = createUploadthing();
 
@@ -11,8 +12,18 @@ export const ourFileRouter = {
       maxFileCount: 1,
     },
   })
-    .middleware(async () => {
-      // Здесь можно добавить проверку авторизации
+    .middleware(async ({ req }) => {
+      const session = readAdminSessionToken(
+        req.cookies.get(ADMIN_SESSION_COOKIE)?.value,
+      );
+
+      if (!session || session.role !== 'full') {
+        throw new UploadThingError({
+          code: "FORBIDDEN",
+          message: "У вас нет прав вносить изменения",
+        });
+      }
+
       return { userId: "admin" };
     })
     .onUploadComplete(async ({ metadata, file }) => {

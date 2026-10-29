@@ -1,7 +1,11 @@
 import client from '@/lib/db';
+import { requireAdmin } from '@/lib/admin-auth';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
+  const auth = await requireAdmin('read');
+  if ('response' in auth) return auth.response;
+
   try {
     const result = await client.execute({ sql: 'SELECT * FROM barbers' });
     return NextResponse.json(result.rows || []);
@@ -12,6 +16,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const body = await request.json();
     await client.execute({
@@ -29,6 +36,9 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const body = await request.json();
     await client.execute({
@@ -45,6 +55,9 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const auth = await requireAdmin('write');
+  if ('response' in auth) return auth.response;
+
   try {
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
